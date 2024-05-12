@@ -4,6 +4,7 @@
 #include <semaphore.h>
 #include <stdbool.h>
 #include <pthread.h>
+#include <errno.h>
 #define MEMORY_SIZE 60
 #define MAX_LINES 60
 #define MAX_LINE_LENGTH 100
@@ -119,7 +120,7 @@ Queue* queue4 ;
 Queue* blockedQueue;
 
 
-Mutex file;
+Mutex files;
 Mutex userInput;
 Mutex userOutput;
 
@@ -302,18 +303,35 @@ void assign(char *variable, char *value) {
 
 void writeFile(char *filename, char *data) {
     // Open the file in write mode
-    FILE *file = fopen(filename, "w");
+    FILE *file = NULL;
+
+    if (strcmp(filename, "a") == 0) {
+        file = fopen(memory[p][11], "w");
+    } else if (strcmp(filename, "b") == 0) {
+        file = fopen(memory[p][12], "w");
+    } else if (strcmp(filename, "c") == 0) {
+       file = fopen(memory[p][13], "w");
+    }
 
     // Check if file opened successfully
     if (file == NULL) {
-        printf("Error opening file %s\n", filename);
+        printf("Error opening file %s: %s\n", filename, strerror(errno));
         return;
     }
 
     // Write data to the file
+    if (strcmp(data, "a") == 0) {
+        data = memory[p][11];
+    } else if (strcmp(data, "b") == 0) {
+        data = memory[p][12];
+    } else if (strcmp(data, "c") == 0) {
+       data = memory[p][13];
+    }
+
+    
     int bytes_written = fprintf(file, "%s", data);
     if (bytes_written < 0) {
-        printf("Error writing data to file %s\n", filename);
+        printf("Error writing data to file %s: %s\n", filename, strerror(errno));
         fclose(file);
         return;
     }
@@ -493,7 +511,7 @@ void execute_instruction(const char *instruction) {
         printFromTo(arg1[0], arg2[0]);
     } else if (strcmp(command, "semWait") == 0) {
         if(strcmp(arg1, "file") == 0) {
-    semWait(&file);
+    semWait(&files);
 } else if(strcmp(arg1, "userInput") == 0) {
     semWait(&userInput);
 } else if(strcmp(arg1, "userOutput") == 0) {
@@ -503,7 +521,7 @@ void execute_instruction(const char *instruction) {
         // semWait(&mutexes[mutexIndex]);
     } else if (strcmp(command, "semSignal") == 0) {
         if(strcmp(arg1, "file") == 0) {
-    semSignal(&file);
+    semSignal(&files);
 } else if(strcmp(arg1, "userInput") == 0) {
     semSignal(&userInput);
 } else if(strcmp(arg1, "userOutput") == 0) {
@@ -614,10 +632,10 @@ int main() {
     blockedQueue = createQueue();
 
     // Initialize mutexes
-    file.value = one;
+    files.value = one;
     userInput.value = one;
     userOutput.value = one;
-    file.ownerID = -1;
+    files.ownerID = -1;
     userInput.ownerID = -1;
     userOutput.ownerID = -1;
 
@@ -652,14 +670,14 @@ int main() {
 
    
      
-pthread_t thread1;
-// pthread_t thread2;
+// pthread_t thread1;
+pthread_t thread2;
 // pthread_t thread3;
-pthread_create(&thread1,NULL, computation0, NULL);
-// pthread_create(&thread2,NULL, computation1, NULL);
+// pthread_create(&thread1,NULL, computation0, NULL);
+pthread_create(&thread2,NULL, computation1, NULL);
 // pthread_create(&thread3,NULL, computation2, NULL);
-pthread_join(thread1, NULL);
-// pthread_join(thread2, NULL);
+// pthread_join(thread1, NULL);
+pthread_join(thread2, NULL);
 // pthread_join(thread3, NULL);
 
 for (int i = 0; i <= 8; i++) {
