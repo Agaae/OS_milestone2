@@ -10,6 +10,7 @@
 #define MAX_LINE_LENGTH 100
 #define NUM_PROGRAMS 3
 
+PCB currPCB;
 int p;
 typedef struct Node {
     int data;
@@ -270,23 +271,17 @@ void semSignal(Mutex* m) {
 
 ////////////////////////////////////////////////////////////////
 
-void assign(char *variable, char *value) {
-    if (strcmp(value, "input") == 0) {
-        printf("Please enter a value for %s: ", variable);
-        scanf("%s", value);
+void assign(char variable, char *value) {
+    int address;
+    switch(variable){
+        case 'a': address=currPCB.upperBound+1;break;
+        case 'b': address=currPCB.upperBound+2;break;
+        case 'c': address=currPCB.upperBound+3;break;
+        default:printf("Unknown variable: %s\n", variable);return;
+
+
     }
-    setenv(variable, value, 1);
-    if (strcmp(variable, "a") == 0) {
-        strcpy(memory[p][11], value);
-    } else if (strcmp(variable, "b") == 0) {
-        strcpy(memory[p][12], value);
-    } else if (strcmp(variable, "c") == 0) {
-        strcpy(memory[p][13], value);
-    } else {
-        // If the variable is not a, b, or c, you can handle it here
-        printf("Unknown variable: %s\n", variable);
-        return;
-    }
+   strcpy(memory[address], value);
 
     printf("Assigned '%s' to '%s'\n", value, variable);
     
