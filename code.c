@@ -8,10 +8,18 @@
 #define MEMORY_SIZE 60
 #define MAX_WORD_LENGTH 100
 
-#define MAX_PCBS 10
+#define MAX_SIZE 10
+
+
 
 int lower_bound=0;
 int program_index = 1;
+
+
+typedef struct {
+    char name[30];
+    char value[MAX_WORD_LENGTH];
+} CELL;
 
 typedef struct {
     int pid; // Process ID
@@ -22,11 +30,97 @@ typedef struct {
     int upper_bound; // Upper bound of process's memory space
 } PCB;
 
-char memory[MEMORY_SIZE][MAX_WORD_LENGTH]; // Corrected declaration
+PCB currPCB;
 
-PCB pcbs[MAX_PCBS];
+typedef struct {
+    PCB items[MAX_SIZE];
+    int front;
+    int rear;
+} Queue;
+
+// Function to initialize the queue
+void initializeQueue(Queue *q) {
+    q->front = -1;
+    q->rear = -1;
+}
+
+// Function to check if the queue is empty
+int isEmpty(Queue *q) {
+    return (q->rear == -1);
+}
+
+// Function to check if the queue is full
+int isFull(Queue *q) {
+    return (q->rear == MAX_SIZE - 1);
+}
+
+// Function to add an element to the queue
+void enqueue(Queue *q, PCB value) {
+    if (isFull(q)) {
+        printf("Queue Overflow\n");
+        return;
+    }
+    if (isEmpty(q))
+        q->front = 0;
+    q->rear++;
+    q->items[q->rear] = value;
+}
+
+// Function to remove an element from the queue
+PCB dequeue(Queue *q) {
+    PCB item;
+    if (isEmpty(q)) {
+        printf("Queue Underflow\n");
+        exit(1);
+    }
+    item = q->items[q->front];
+    if (q->front >= q->rear) {
+        q->front = -1;
+        q->rear = -1;
+    } else {
+        q->front++;
+    }
+    return item;
+}
+
+// Function to display the elements of the queue
+void display(Queue *q) {
+    int i;
+    if (isEmpty(q)) {
+        printf("Queue is empty\n");
+        return;
+    }
+    printf("Queue elements are:\n");
+    for (i = q->front; i <= q->rear; i++) {
+        printf("PID: %d, State: %s, Priority: %d, PC: %d, Lower Bound: %d, Upper Bound: %d\n",
+               q->items[i].pid, q->items[i].state, q->items[i].priority,
+               q->items[i].program_counter, q->items[i].lower_bound, q->items[i].upper_bound);
+    }
+}
 
 
+CELL memory[MEMORY_SIZE]; // Corrected declaration
+
+
+
+PCB pcbs[3];    
+
+int clk=0;
+int p1Arrival;
+int p2Arrival;
+int p3Arrival;
+
+
+
+Queue q1, q2, q3, q4, blockedQueue;
+
+typedef struct Mutex {
+    enum { zero, one } value;
+    int ownerID;
+} Mutex;
+Mutex file;
+Mutex userInput;
+Mutex userOutput;
 
 void read_program(const char *filename) {
     FILE* file = fopen(filename, "r");
@@ -35,128 +129,195 @@ void read_program(const char *filename) {
        
     }
 int lb=lower_bound;
+CELL temp;
+int insCount=1;
     char buffer[MAX_WORD_LENGTH];  // Buffer to hold each line
     while (fgets(buffer, sizeof(buffer), file) != NULL) {
-        // Copy the line into the global array
-        strcpy(memory[lower_bound], buffer); // Corrected: Copy to memory[line_count]
+        sprintf(temp.name,  "instruction %d :", insCount);
+        insCount++;
+        strcpy(temp.value, buffer); // Corrected: Copy to memory[line_count]
+        memory[lower_bound] = temp;
         lower_bound++;
         if (lower_bound >= MEMORY_SIZE) {
             printf("Reached maximum number of lines\n");
             break;
         }
     }
-    strcpy(memory[lower_bound], "a: ");
+    temp.value[0] = '\0';
+    strcpy(temp.name, "a: ");
+    memory[lower_bound] = temp;
     lower_bound++;
-    strcpy(memory[lower_bound], "b: ");
+
+    strcpy(temp.name, "b: ");
+    memory[lower_bound] = temp;
     lower_bound++;
-    strcpy(memory[lower_bound], "c: ");
+
+     strcpy(temp.name, "c: ");
+    memory[lower_bound] = temp;
     lower_bound++;
+    
 
     PCB pcb;
     pcb.pid = program_index; 
-    sprintf(memory[lower_bound], "PID: %d", pcb.pid);
-    lower_bound++;
     program_index++;
-
-    strcpy(pcb.state, "Ready");
-    sprintf(memory[lower_bound], "State: %s", pcb.state);
-    lower_bound++;
-
     pcb.priority =1 ;
-    sprintf(memory[lower_bound], "Priority: %d", pcb.priority);
-    lower_bound++;
-
     pcb.program_counter = 0;
-    strcpy(memory[lower_bound], "PC: 0");
-    lower_bound++;
-
     pcb.lower_bound = lb;
-    sprintf(memory[lower_bound], "Lower bound: %d", pcb.lower_bound);
+
+    strcpy(temp.name, "PID: ");
+    sprintf(temp.value,  "%d", pcb.pid);
+    memory[lower_bound] = temp;
     lower_bound++;
 
-    pcb.upper_bound = lower_bound-9;
-    sprintf(memory[lower_bound], "Upper bound: %d", pcb.upper_bound);
+    strcpy(temp.name, "State: ");
+    strcpy(temp.value, "Ready");
+    memory[lower_bound] = temp;
     lower_bound++;
-   
 
-    pcbs[pcb.pid - 1] = pcb;
+    strcpy(temp.name, "Priority: ");
+    sprintf(temp.value,  "%d", pcb.priority);
+    memory[lower_bound] = temp;
+    lower_bound++;
 
+    strcpy(temp.name, "Program Counter: ");
+    sprintf(temp.value,  "%d", pcb.program_counter);
+    memory[lower_bound] = temp;
+    lower_bound++;
+
+    strcpy(temp.name, "Lower Bound: ");
+    sprintf(temp.value,  "%d", pcb.lower_bound);
+    memory[lower_bound] = temp;
+    lower_bound++;
+
+pcb.upper_bound = lower_bound-9;
+    strcpy(temp.name, "Upper Bound: ");
+    sprintf(temp.value,  "%d", pcb.upper_bound);
+    memory[lower_bound] = temp;
+    lower_bound++;
+
+    pcbs[program_index-1] = pcb;
 
     fclose(file);
 }
 
 ////////////////////////////////// Instructions //////////////////////////////////////////////////
+void assign(char variable, char *value) {
+    int address;
+    printf("------------------------%d",currPCB.upper_bound);
+    printf("%d",currPCB.pid);
+printf("%d",currPCB.program_counter);
+printf("%d",currPCB.priority);
+printf("%d",currPCB.lower_bound);
+printf("%d",currPCB.upper_bound);
 
-void assign(char variable, charvalue) {
+
+
+
+    switch(variable){
+        case 'a': address=currPCB.upper_bound+1;break;
+        case 'b': address=currPCB.upper_bound+2;break;
+        case 'c': address=currPCB.upper_bound+3;break;
+        default:printf("Unknown variable: %d\n", variable);return;
+    }
+    printf("Assigning -----------------%d",address);
     if (strcmp(value, "input") == 0) {
-        printf("Please enter a value for %s: ", variable);
-        scanf("%s", value);
-    }
-    setenv(variable, value, 1);
-    if (strcmp(variable, "a") == 0) {
-        strcpy(memory[p][11], value);
-    } else if (strcmp(variable, "b") == 0) {
-        strcpy(memory[p][12], value);
-    } else if (strcmp(variable, "c") == 0) {
-        strcpy(memory[p][13], value);
+        char *arrival_time;
+
+        printf("Enter value for variable '%c': ", variable);
+         scanf("%s", arrival_time);
+       strcpy(memory[address].value, arrival_time);
     } else {
-        // If the variable is not a, b, or c, you can handle it here
-        printf("Unknown variable: %s\n", variable);
-        return;
+        // Otherwise, copy the provided value to the memory
+        strcpy(memory[address].value, value);
     }
 
-    printf("Assigned '%s' to '%s'\n", value, variable);
+    printf("Assigned '%s' to '%c'\n", memory[address].value, variable);
+}
+
+void printFromTo(char x, char y) {
+    int start, end;
+
+    // Convert 'x' and 'y' to their corresponding values in memory
+    if (x == 'a') {
+        start = atoi(memory[currPCB.upper_bound+1].value);
+    } else if (x == 'b') {
+        start = atoi(memory[currPCB.upper_bound+2].value);
+    } else if (x == 'c') {
+        start = atoi(memory[currPCB.upper_bound+3].value);
+    } 
+
+    if (y == 'a') {
+        end= atoi(memory[currPCB.upper_bound+1].value);
+    } else if (y == 'b') {
+        end = atoi(memory[currPCB.upper_bound+2].value);
+    } else if (y == 'c') {
+        end = atoi(memory[currPCB.upper_bound+3].value);
+    } 
+
+    printf("Numbers between %d and %d:\n", start, end);
+    for (int i = start; i <=end; i++) {
+        printf("%d ", i);
     }
+    printf("\n");
+}
 
-
-
-    void writeFile(char filename, chardata) {
-    // Open the file in write mode
+  void writeFile(char filename, char data) {
     FILE *file = NULL;
-
-    if (strcmp(filename, "a") == 0) {
-        file = fopen(memory[p][11], "w");
-    } else if (strcmp(filename, "b") == 0) {
-        file = fopen(memory[p][12], "w");
-    } else if (strcmp(filename, "c") == 0) {
-       file = fopen(memory[p][13], "w");
+    char *name;
+    if (filename == 'a') {
+        name = memory[currPCB.upper_bound+1].value;
+    } else if (filename == 'b') {
+        name = memory[currPCB.upper_bound+2].value;
+    } else if (filename == 'c') {
+        name = memory[currPCB.upper_bound+3].value;
     }
-
-    // Check if file opened successfully
+    file = fopen(name, "w");
     if (file == NULL) {
-        printf("Error opening file %s: %s\n", filename, strerror(errno));
+        printf("Error opening file %s: %s\n", name, strerror(errno));
         return;
     }
 
     // Write data to the file
-    if (strcmp(data, "a") == 0) {
-        data = memory[p][11];
-    } else if (strcmp(data, "b") == 0) {
-        data = memory[p][12];
-    } else if (strcmp(data, "c") == 0) {
-       data = memory[p][13];
+
+    char *dataToWrite;
+    if (data == 'a') {
+        dataToWrite=memory[currPCB.upper_bound+1].value;
+    } else if (data == 'b') {
+        dataToWrite=memory[currPCB.upper_bound+2].value;
+    } else if (data == 'c') {
+        dataToWrite=memory[currPCB.upper_bound+3].value;
     }
 
 
-    int bytes_written = fprintf(file, "%s", data);
+    int bytes_written = fprintf(file, "%s", dataToWrite);
     if (bytes_written < 0) {
-        printf("Error writing data to file %s: %s\n", filename, strerror(errno));
+        printf("Error writing data to file %s: %s\n", name, strerror(errno));
         fclose(file);
         return;
     }
 
     // Close the file
     fclose(file);
-
-    printf("Data written to %s successfully.\n", filename);
+    printf("Data written to %s successfully.\n", name);
 }
+
+
 char* readFile(char filename) {
     // Open the file in read mode
-    FILEfile = fopen(filename, "r");
+    
+    char *name;
+    if (filename == 'a') {
+        name = memory[currPCB.upper_bound+1].value;
+    } else if (filename == 'b') {
+        name = memory[currPCB.upper_bound+2].value;
+    } else if (filename == 'c') {
+        name = memory[currPCB.upper_bound+3].value;
+    }
+    FILE *file = fopen(name, "r");
 
     // Check if file opened successfully
     if (file == NULL) {
-        printf("Error opening file %s\n", filename);
+        printf("Error opening file %s\n", name);
         return NULL;
     }
 
@@ -166,7 +327,7 @@ char* readFile(char filename) {
     fseek(file, 0, SEEK_SET);
 
     // Allocate memory for file contents
-    char file_contents = (char)malloc(file_size + 1);
+    char *file_contents = malloc(file_size + 1);
     if (file_contents == NULL) {
         printf("Memory allocation failed\n");
         fclose(file);
@@ -192,123 +353,284 @@ char* readFile(char filename) {
     printf("File contents: %s\n", file_contents);
     return file_contents;
 }
-void printFromTo(int x, int y) {
-    int start, end;
 
-    // Convert 'x' and 'y' to their corresponding values in memory
-    if (x == 'a') {
-        start = atoi(memory[p][11]);
-    } else if (x == 'b') {
-        start = atoi(memory[p][12]);
-    } else if (x == 'c') {
-        start = atoi(memory[p][13]);
+
+void semWait(Mutex *mutex) {
+    if (mutex->value == one) {
+        
+        printf("Process %d blocked waiting for resource\n", currPCB.pid);
+        enqueue(&blockedQueue, currPCB);
     } else {
-        start = x; // Use 'x' as it is
+        // Resource is available, acquire it
+        mutex->value = one;
+        mutex->ownerID = currPCB.pid; // Assuming currPCB is the current process control block
     }
-
-    if (y == 'a') {
-        end = atoi(memory[p][11]);
-    } else if (y == 'b') {
-        end = atoi(memory[p][12]);
-    } else if (y == 'c') {
-        end = atoi(memory[p][13]);
-    } else {
-        end = y; // Use 'y' as it is
-    }
-
-    // Determine the starting and ending numbers
-    int min = (start <= end) ? start : end;
-    int max = (start <= end) ? end : start;
-
-    // Print numbers between start and end
-    printf("Numbers between %d and %d:\n", min, max);
-    for (int i = min; i <= max; i++) {
-        printf("%d ", i);
-    }
-    printf("\n");
 }
 
+void semSignal(Mutex *mutex) {
+    if (mutex->value == one) {
+        // Release the resource
+        mutex->value = zero;
+        mutex->ownerID = -1; // No owner
+    } else {
+        // Resource was not in use, error condition
+        printf("Error: Attempting to release a non-acquired resource\n");
+    }
+}
+
+void print(char output) {
+      int address;
+    switch(output){
+        case 'a': address=currPCB.upper_bound+1;break;
+        case 'b': address=currPCB.upper_bound+2;break;
+        case 'c': address=currPCB.upper_bound+3;break;
+        default:printf("Unknown variable: %d\n", output);return;
 
 
+    }
+
+    printf("%s", memory[address].value);
+}
 void execute_instruction(const char *instruction) {
-    char command[MAX_LINE_LENGTH], arg1[MAX_LINE_LENGTH], arg2[MAX_LINE_LENGTH], arg3[MAX_LINE_LENGTH];
+     char command[MAX_WORD_LENGTH], arg1[MAX_WORD_LENGTH], arg2[MAX_WORD_LENGTH], arg3[MAX_WORD_LENGTH];
+
+     
 
     // Parse the instruction
-     sscanf(instruction, "%s %s %s %s", command, arg1, arg2, arg3);
+    sscanf(instruction, "%s %s %s %s", command, arg1, arg2, arg3);
 
-    // Determine the action based on the command
-    if (strcmp(command, "assign") == 0) {
-        if(strcmp(arg2, "readFile") == 0){
-            assign(arg1, readFile(memory[p][11]));
+    printf("Executing instruction: %s\n", instruction);
+     printf("command: %s, arg1: %s, arg2: %s, arg3: %s\n", command, arg1, arg2, arg3);
 
+   // Determine the action based on the command
+    if (strcmp(command, "semWait") == 0) {
+        if (strcmp(arg1, "userInput") == 0) {
+            semWait(&userInput);
+        } else if (strcmp(arg1, "file") == 0) {
+            semWait(&file);
+        } else if (strcmp(arg1, "userOutput") == 0) {
+            semWait(&userOutput);
+        } else {
+            printf("Unknown semaphore: %s\n", arg1);
         }
-        else{
-            if(strcmp(arg1, "readFile") == 0){
-                assign(readFile(arg2), arg3);
-
+     currPCB.program_counter++;
+    } else if (strcmp(command, "assign") == 0) {
+        if (strcmp(arg2, "input") == 0) {
+            assign(arg1[0], arg2); // Assuming arg1 contains a single character representing the variable
+        } else if (strcmp(arg2, "readFile") == 0) {
+            char *fileContents = readFile(arg3[0]); // Assuming arg3 contains a single character representing the filename variable
+            if (fileContents != NULL) {
+                assign(arg1[0], fileContents);
+                free(fileContents); // Free allocated memory
+            } else {
+                printf("Error reading file: %s\n", arg3);
             }
-            else{
-                assign(arg1,arg2);
-            }
+        } else {
+            assign(arg1[0], arg2);
         }
-
+       currPCB.program_counter++;
     } else if (strcmp(command, "writeFile") == 0) {
-        writeFile(arg1, arg2);
-    } else if (strcmp(command, "readFile") == 0) {
-        readFile(arg1);
-    } else if (strcmp(command, "printFromTo") == 0) {
-        printFromTo(arg1[0], arg2[0]);
-    } else if (strcmp(command, "semWait") == 0) {
-        if(strcmp(arg1, "file") == 0) {
-    semWait(&files);
-} else if(strcmp(arg1, "userInput") == 0) {
-    semWait(&userInput);
-} else if(strcmp(arg1, "userOutput") == 0) {
-    semWait(&userOutput);
-}
-        // int mutexIndex = atoi(arg1); // Assuming arg1 contains the index of the mutex
-        // semWait(&mutexes[mutexIndex]);
+        writeFile(arg1[0], arg2[0]);currPCB.program_counter++;// Assuming arg1 and arg2 contain single characters representing the filename and data variable, respectively
     } else if (strcmp(command, "semSignal") == 0) {
-        if(strcmp(arg1, "file") == 0) {
-    semSignal(&files);
-} else if(strcmp(arg1, "userInput") == 0) {
-    semSignal(&userInput);
-} else if(strcmp(arg1, "userOutput") == 0) {
-    semSignal(&userOutput);
-}
-
-        // int mutexIndex = atoi(arg1); // Assuming arg1 contains the index of the mutex
-        // semSignal(&mutexes[mutexIndex]);
-    }
-    else if(strcmp(command, "print") == 0) {
-    print(arg1);
-}
- else {
+        if (strcmp(arg1, "userInput") == 0) {
+            semSignal(&userInput);
+        } else if (strcmp(arg1, "file") == 0) {
+            semSignal(&file);
+        } else if (strcmp(arg1, "userOutput") == 0) {
+            semSignal(&userOutput);
+        } else {
+            printf("Unknown semaphore: %s\n", arg1);
+        }
+       currPCB.program_counter++;
+    } else if (strcmp(command, "print") == 0) {
+       print(arg1[0]);currPCB.program_counter++;
+    } else if (strcmp(command, "printFromTo") == 0) {
+        printFromTo(arg1[0], arg2[0]);currPCB.program_counter++; // Assuming arg1 and arg2 contain single characters representing the start and end variables, respectively
+    } else {
         printf("Unknown command: %s\n", command);
     }
-
 }
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void print_memory() {
     printf("Memory Contents:\n");
-    for (int i = 0; i < MEMORY_SIZE; i++) {
-        printf("\n word:");
-        printf("%s", memory[i]);
+    for (int i = 0; i < 16; i++) {
+        printf("%s", memory[i].name);
+        printf("%s", memory[i].value);
         printf("\n");
     }
 }
 
 int main() {
+    initializeQueue(&q1);
+    initializeQueue(&q2);
+    initializeQueue(&q3);
+    initializeQueue(&q4);
+    initializeQueue(&blockedQueue);
+
     const char *filenames[3] = {"Program_1.txt", "Program_2.txt", "Program_3.txt"};
 
     for (int i = 0; i < 3; i++) {
         read_program(filenames[i]);
-        
-       
     }
-print_memory();
-    
+
+    print_memory();
+
+    // for (int i = 0; i < 3; i++) {
+    //     int arrival_time;
+    //     printf("Enter arrival time for Process %d: ", i + 1);
+    //     scanf("%d", &arrival_time);
+
+    //     // Store arrival time in global variables
+    //     switch (i) {
+    //         case 0:
+    //             p1Arrival = arrival_time;
+    //             break;
+    //         case 1:
+    //             p2Arrival = arrival_time;
+    //             break;
+    //         case 2:
+    //             p3Arrival = arrival_time;
+    //             break;
+    //     }
+    // }
+
+    // if(p1Arrival==0){
+    //     enqueue(&q1, pcbs[0]);
+    // }    
+    // if(p2Arrival==0){
+    //     enqueue(&q1, pcbs[1]);
+    // }
+    // if(p3Arrival==0){
+    //     enqueue(&q1, pcbs[2]);
+    // }
+    currPCB=pcbs[0];
+printf("%d",currPCB.pid);
+printf("%d",currPCB.program_counter);
+printf("%d",currPCB.priority);
+printf("%d",currPCB.lower_bound);
+printf("%d",currPCB.upper_bound);
+    execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
+    print_memory();
+    execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
+    print_memory();
+    execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
+    print_memory();
+    execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
+    print_memory();
+    execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
+    print_memory();
+    execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
+    print_memory();
+    execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
+    print_memory();
+
+
+
+    // while ((!isEmpty(&q1) || !isEmpty(&q2) || !isEmpty(&q3)||!isEmpty(&q4)||!isEmpty(&blockedQueue))&&clk<30)  {
+
+
+    //     printf("----------------------Clock: ------------------------------%d\n", clk);
+    //     if (clk==p1Arrival&&clk!=0) {
+    //         enqueue(&q1, pcbs[0]);
+    //     }
+    //     if(clk==p2Arrival&&clk!=0){
+    //         enqueue(&q1, pcbs[1]);
+    //     }
+    //     if(clk==p3Arrival&&clk!=0){
+    //         enqueue(&q1, pcbs[2]);
+    //     }
+
+    //     if (!isEmpty(&q1)) {
+    //         currPCB = dequeue(&q1);
+    //         execute_instruction(memory[lower_bound+currPCB.program_counter].value);
+    //         if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter){
+    //             currPCB.priority++;
+    //             enqueue(&q2, currPCB);
+    //         }
+    //         clk++;
+    //         }
+
+    //         else if(!isEmpty(&q2)){
+    //             currPCB = dequeue(&q2);
+
+    //             execute_instruction(memory[lower_bound+currPCB.program_counter].value);
+    //             clk++;
+    //             if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter){
+    //                 execute_instruction(memory[lower_bound+currPCB.program_counter].value);
+    //                 clk++;
+    //                 if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter){
+    //                     currPCB.priority++;
+    //                     enqueue(&q3, currPCB);
+    //                 }
+    //             }
+                
+
+    //         }
+    //         else if(!isEmpty(&q3)){
+    //             currPCB = dequeue(&q3);
+    //             execute_instruction(memory[lower_bound+currPCB.program_counter].value);
+    //             clk++;
+    //             if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter){
+    //                 execute_instruction(memory[lower_bound+currPCB.program_counter].value);
+    //                 clk++;
+    //                 if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter){
+    //                     execute_instruction(memory[lower_bound+currPCB.program_counter].value);
+    //                     clk++;
+    //                     if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter){
+    //                         execute_instruction(memory[lower_bound+currPCB.program_counter].value);
+    //                         clk++;
+    //                         if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter){
+    //                             currPCB.priority++;
+    //                             enqueue(&q4, currPCB);
+    //                         }
+    //                     }
+
+    //                 }
+    //             }
+    //         }
+
+    //         else if(!isEmpty(&q4)){
+    //             currPCB = dequeue(&q4);
+    //             execute_instruction(memory[lower_bound+currPCB.program_counter].value);
+    //             clk++;
+    //             if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter){
+    //                 execute_instruction(memory[lower_bound+currPCB.program_counter].value);
+    //                 clk++;
+    //                 if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter){
+    //                     execute_instruction(memory[lower_bound+currPCB.program_counter].value);
+    //                     clk++;
+    //                     if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter){
+    //                         execute_instruction(memory[lower_bound+currPCB.program_counter].value);
+    //                         clk++;
+    //                         if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter){
+    //                             execute_instruction(memory[lower_bound+currPCB.program_counter].value);
+    //                             clk++;
+    //                             if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter){
+    //                                 execute_instruction(memory[lower_bound+currPCB.program_counter].value);
+    //                                 clk++;
+    //                                 if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter){
+    //                                     execute_instruction(memory[lower_bound+currPCB.program_counter].value);
+    //                                     clk++;
+    //                                     if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter){
+    //                                       execute_instruction(memory[lower_bound+currPCB.program_counter].value);
+    //                                       clk++;
+    //                                       if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter){
+    //                                         enqueue(&q4, currPCB);
+    //                                       }
+    //                                     }
+
+    //                                 }
+    //                             }
+    //                         }
+    //                     }
+    //                 }
+    //             }
+    //             }
+
+            
+    // }
 
     return 0;
+
+
 }
