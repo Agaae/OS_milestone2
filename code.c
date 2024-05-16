@@ -10,7 +10,7 @@
 
 #define MAX_SIZE 10
 
-
+bool blocked;
 
 int lower_bound=0;
 int program_index = 1;
@@ -81,6 +81,17 @@ PCB dequeue(Queue *q) {
         q->front++;
     }
     return item;
+
+
+}
+
+
+int queueLength(Queue *q) {
+    if (isEmpty(q)) {
+        return 0;
+    } else {
+        return q->rear - q->front + 1;
+    }
 }
 
 // Function to display the elements of the queue
@@ -195,7 +206,7 @@ pcb.upper_bound = lower_bound-9;
     memory[lower_bound] = temp;
     lower_bound++;
 
-    pcbs[program_index-1] = pcb;
+    pcbs[program_index-2] = pcb;
 
     fclose(file);
 }
@@ -203,14 +214,6 @@ pcb.upper_bound = lower_bound-9;
 ////////////////////////////////// Instructions //////////////////////////////////////////////////
 void assign(char variable, char *value) {
     int address;
-    printf("------------------------%d",currPCB.upper_bound);
-    printf("%d",currPCB.pid);
-printf("%d",currPCB.program_counter);
-printf("%d",currPCB.priority);
-printf("%d",currPCB.lower_bound);
-printf("%d",currPCB.upper_bound);
-
-
 
 
     switch(variable){
@@ -360,6 +363,7 @@ void semWait(Mutex *mutex) {
         
         printf("Process %d blocked waiting for resource\n", currPCB.pid);
         enqueue(&blockedQueue, currPCB);
+        blocked = true;
     } else {
         // Resource is available, acquire it
         mutex->value = one;
@@ -372,6 +376,49 @@ void semSignal(Mutex *mutex) {
         // Release the resource
         mutex->value = zero;
         mutex->ownerID = -1; // No owner
+        int size = queueLength(&blockedQueue);
+        for (int i = 0; i < size; i++) {
+            PCB item = dequeue(&blockedQueue);
+            char *x=memory[item.lower_bound+item.program_counter].value;
+            if(strcmp(x,"semWait userInput")==0){
+                if(userInput.value==zero){
+                    if(item.priority==1)
+                        enqueue(&q1, item);
+                    if (item.priority==2)
+                        enqueue(&q2, item);
+                    if (item.priority==3)
+                        enqueue(&q3, item);
+                    break;
+                }
+                enqueue(&blockedQueue, item);
+            }
+            else if(strcmp(x,"semWait userOutput")==0){
+                if(userOutput.value==zero){
+                    if(item.priority==1)
+                        enqueue(&q1, item);
+                    if (item.priority==2)
+                        enqueue(&q2, item);
+                    if (item.priority==3)
+                        enqueue(&q3, item);
+                    break;
+                }
+                enqueue(&blockedQueue, item);
+            }
+            else if(strcmp(x,"semWait file")==0){
+                if(file.value==zero){
+                    if(item.priority==1)
+                        enqueue(&q1, item);
+                    if (item.priority==2)
+                        enqueue(&q2, item);
+                    if (item.priority==3)
+                        enqueue(&q3, item);
+                    break;
+                }
+                enqueue(&blockedQueue, item);
+            }
+        }
+
+
     } else {
         // Resource was not in use, error condition
         printf("Error: Attempting to release a non-acquired resource\n");
@@ -413,7 +460,9 @@ void execute_instruction(const char *instruction) {
         } else {
             printf("Unknown semaphore: %s\n", arg1);
         }
+        if(!blocked){
      currPCB.program_counter++;
+     sprintf(memory[currPCB.upper_bound + 7].value, "%d", currPCB.program_counter);}
     } else if (strcmp(command, "assign") == 0) {
         if (strcmp(arg2, "input") == 0) {
             assign(arg1[0], arg2); // Assuming arg1 contains a single character representing the variable
@@ -429,6 +478,7 @@ void execute_instruction(const char *instruction) {
             assign(arg1[0], arg2);
         }
        currPCB.program_counter++;
+       sprintf(memory[currPCB.upper_bound + 7].value, "%d", currPCB.program_counter);
     } else if (strcmp(command, "writeFile") == 0) {
         writeFile(arg1[0], arg2[0]);currPCB.program_counter++;// Assuming arg1 and arg2 contain single characters representing the filename and data variable, respectively
     } else if (strcmp(command, "semSignal") == 0) {
@@ -442,10 +492,14 @@ void execute_instruction(const char *instruction) {
             printf("Unknown semaphore: %s\n", arg1);
         }
        currPCB.program_counter++;
+       sprintf(memory[currPCB.upper_bound + 7].value, "%d", currPCB.program_counter);
     } else if (strcmp(command, "print") == 0) {
        print(arg1[0]);currPCB.program_counter++;
+       sprintf(memory[currPCB.upper_bound + 7].value, "%d", currPCB.program_counter);
     } else if (strcmp(command, "printFromTo") == 0) {
-        printFromTo(arg1[0], arg2[0]);currPCB.program_counter++; // Assuming arg1 and arg2 contain single characters representing the start and end variables, respectively
+        printFromTo(arg1[0], arg2[0]);
+        currPCB.program_counter++;
+     sprintf(memory[currPCB.upper_bound + 7].value, "%d", currPCB.program_counter);
     } else {
         printf("Unknown command: %s\n", command);
     }
@@ -475,160 +529,293 @@ int main() {
 
     print_memory();
 
-    // for (int i = 0; i < 3; i++) {
-    //     int arrival_time;
-    //     printf("Enter arrival time for Process %d: ", i + 1);
-    //     scanf("%d", &arrival_time);
+    for (int i = 0; i < 3; i++) {
+        int arrival_time;
+        printf("Enter arrival time for Process %d: ", i + 1);
+        scanf("%d", &arrival_time);
 
-    //     // Store arrival time in global variables
-    //     switch (i) {
-    //         case 0:
-    //             p1Arrival = arrival_time;
-    //             break;
-    //         case 1:
-    //             p2Arrival = arrival_time;
-    //             break;
-    //         case 2:
-    //             p3Arrival = arrival_time;
-    //             break;
-    //     }
-    // }
+        // Store arrival time in global variables
+        switch (i) {
+            case 0:
+                p1Arrival = arrival_time;
+                break;
+            case 1:
+                p2Arrival = arrival_time;
+                break;
+            case 2:
+                p3Arrival = arrival_time;
+                break;
+        }
+    }
 
-    // if(p1Arrival==0){
-    //     enqueue(&q1, pcbs[0]);
-    // }    
-    // if(p2Arrival==0){
-    //     enqueue(&q1, pcbs[1]);
-    // }
-    // if(p3Arrival==0){
-    //     enqueue(&q1, pcbs[2]);
-    // }
-    currPCB=pcbs[0];
-printf("%d",currPCB.pid);
-printf("%d",currPCB.program_counter);
-printf("%d",currPCB.priority);
-printf("%d",currPCB.lower_bound);
-printf("%d",currPCB.upper_bound);
-    execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
-    print_memory();
-    execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
-    print_memory();
-    execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
-    print_memory();
-    execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
-    print_memory();
-    execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
-    print_memory();
-    execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
-    print_memory();
-    execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
-    print_memory();
+    if(p1Arrival==0){
+        enqueue(&q1, pcbs[0]);
+    }    
+    if(p2Arrival==0){
+        enqueue(&q1, pcbs[1]);
+    }
+    if(p3Arrival==0){
+        enqueue(&q1, pcbs[2]);
+    }
 
 
+   
 
-    // while ((!isEmpty(&q1) || !isEmpty(&q2) || !isEmpty(&q3)||!isEmpty(&q4)||!isEmpty(&blockedQueue))&&clk<30)  {
+
+    while ((!isEmpty(&q1) || !isEmpty(&q2) || !isEmpty(&q3)||!isEmpty(&q4)||!isEmpty(&blockedQueue))&&clk<30)  {
 
 
-    //     printf("----------------------Clock: ------------------------------%d\n", clk);
-    //     if (clk==p1Arrival&&clk!=0) {
-    //         enqueue(&q1, pcbs[0]);
-    //     }
-    //     if(clk==p2Arrival&&clk!=0){
-    //         enqueue(&q1, pcbs[1]);
-    //     }
-    //     if(clk==p3Arrival&&clk!=0){
-    //         enqueue(&q1, pcbs[2]);
-    //     }
+        printf("----------------------Clock:%d ------------------------------\n", clk);
+        printf("q1-----------------------------------------------------------------");
+        display(&q1);
+        printf("q2-----------------------------------------------------------------");
+        display(&q2);
+        printf("q3-----------------------------------------------------------------");
+        display(&q3);
+        printf("q4-----------------------------------------------------------------");
+        display(&q4);
+        printf("q5-----------------------------------------------------------------");
+        display(&blockedQueue);
+        printf("-----------------------------------------------------------------");
 
-    //     if (!isEmpty(&q1)) {
-    //         currPCB = dequeue(&q1);
-    //         execute_instruction(memory[lower_bound+currPCB.program_counter].value);
-    //         if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter){
-    //             currPCB.priority++;
-    //             enqueue(&q2, currPCB);
-    //         }
-    //         clk++;
-    //         }
+        if (clk==p1Arrival&&clk!=0) {
+            enqueue(&q1, pcbs[0]);
+        }
+        if(clk==p2Arrival&&clk!=0){
+            enqueue(&q1, pcbs[1]);
+        }
+        if(clk==p3Arrival&&clk!=0){
+            enqueue(&q1, pcbs[2]);
+        }
 
-    //         else if(!isEmpty(&q2)){
-    //             currPCB = dequeue(&q2);
+        if (!isEmpty(&q1)) {
+            currPCB = dequeue(&q1);
+            blocked = false;
+            execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
+            if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter&&!blocked){
+                currPCB.priority++;
+                enqueue(&q2, currPCB);
+            }
+            clk++;
+            if (clk==p1Arrival&&clk!=0) {
+            enqueue(&q1, pcbs[0]);
+        }
+        if(clk==p2Arrival&&clk!=0){
+            enqueue(&q1, pcbs[1]);
+        }
+        if(clk==p3Arrival&&clk!=0){
+            enqueue(&q1, pcbs[2]);
+        }
 
-    //             execute_instruction(memory[lower_bound+currPCB.program_counter].value);
-    //             clk++;
-    //             if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter){
-    //                 execute_instruction(memory[lower_bound+currPCB.program_counter].value);
-    //                 clk++;
-    //                 if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter){
-    //                     currPCB.priority++;
-    //                     enqueue(&q3, currPCB);
-    //                 }
-    //             }
+            }
+
+            else if(!isEmpty(&q2)){
+                currPCB = dequeue(&q2);
+                blocked = false;
+                execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
+                clk++;if (clk==p1Arrival&&clk!=0) {
+            enqueue(&q1, pcbs[0]);
+        }
+        if(clk==p2Arrival&&clk!=0){
+            enqueue(&q1, pcbs[1]);
+        }
+        if(clk==p3Arrival&&clk!=0){
+            enqueue(&q1, pcbs[2]);
+        }
+
+                if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter&&!blocked){
+                    execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
+                    clk++;if (clk==p1Arrival&&clk!=0) {
+            enqueue(&q1, pcbs[0]);
+        }
+        if(clk==p2Arrival&&clk!=0){
+            enqueue(&q1, pcbs[1]);
+        }
+        if(clk==p3Arrival&&clk!=0){
+            enqueue(&q1, pcbs[2]);
+        }
+
+                    if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter&&!blocked){
+                        currPCB.priority++;
+                        enqueue(&q3, currPCB);
+                    }
+                }
                 
 
-    //         }
-    //         else if(!isEmpty(&q3)){
-    //             currPCB = dequeue(&q3);
-    //             execute_instruction(memory[lower_bound+currPCB.program_counter].value);
-    //             clk++;
-    //             if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter){
-    //                 execute_instruction(memory[lower_bound+currPCB.program_counter].value);
-    //                 clk++;
-    //                 if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter){
-    //                     execute_instruction(memory[lower_bound+currPCB.program_counter].value);
-    //                     clk++;
-    //                     if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter){
-    //                         execute_instruction(memory[lower_bound+currPCB.program_counter].value);
-    //                         clk++;
-    //                         if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter){
-    //                             currPCB.priority++;
-    //                             enqueue(&q4, currPCB);
-    //                         }
-    //                     }
+            }
+            else if(!isEmpty(&q3)){
+                currPCB = dequeue(&q3);
+                blocked = false;
+                execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
+                clk++;if (clk==p1Arrival&&clk!=0) {
+            enqueue(&q1, pcbs[0]);
+        }
+        if(clk==p2Arrival&&clk!=0){
+            enqueue(&q1, pcbs[1]);
+        }
+        if(clk==p3Arrival&&clk!=0){
+            enqueue(&q1, pcbs[2]);
+        }
 
-    //                 }
-    //             }
-    //         }
+                if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter&&!blocked){
+                    execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
+                    clk++;if (clk==p1Arrival&&clk!=0) {
+            enqueue(&q1, pcbs[0]);
+        }
+        if(clk==p2Arrival&&clk!=0){
+            enqueue(&q1, pcbs[1]);
+        }
+        if(clk==p3Arrival&&clk!=0){
+            enqueue(&q1, pcbs[2]);
+        }
 
-    //         else if(!isEmpty(&q4)){
-    //             currPCB = dequeue(&q4);
-    //             execute_instruction(memory[lower_bound+currPCB.program_counter].value);
-    //             clk++;
-    //             if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter){
-    //                 execute_instruction(memory[lower_bound+currPCB.program_counter].value);
-    //                 clk++;
-    //                 if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter){
-    //                     execute_instruction(memory[lower_bound+currPCB.program_counter].value);
-    //                     clk++;
-    //                     if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter){
-    //                         execute_instruction(memory[lower_bound+currPCB.program_counter].value);
-    //                         clk++;
-    //                         if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter){
-    //                             execute_instruction(memory[lower_bound+currPCB.program_counter].value);
-    //                             clk++;
-    //                             if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter){
-    //                                 execute_instruction(memory[lower_bound+currPCB.program_counter].value);
-    //                                 clk++;
-    //                                 if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter){
-    //                                     execute_instruction(memory[lower_bound+currPCB.program_counter].value);
-    //                                     clk++;
-    //                                     if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter){
-    //                                       execute_instruction(memory[lower_bound+currPCB.program_counter].value);
-    //                                       clk++;
-    //                                       if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter){
-    //                                         enqueue(&q4, currPCB);
-    //                                       }
-    //                                     }
+                    if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter&&!blocked){
+                        execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
+                        clk++;if (clk==p1Arrival&&clk!=0) {
+            enqueue(&q1, pcbs[0]);
+        }
+        if(clk==p2Arrival&&clk!=0){
+            enqueue(&q1, pcbs[1]);
+        }
+        if(clk==p3Arrival&&clk!=0){
+            enqueue(&q1, pcbs[2]);
+        }
 
-    //                                 }
-    //                             }
-    //                         }
-    //                     }
-    //                 }
-    //             }
-    //             }
+                        if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter&&!blocked){
+                            execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
+                            clk++;if (clk==p1Arrival&&clk!=0) {
+            enqueue(&q1, pcbs[0]);
+        }
+        if(clk==p2Arrival&&clk!=0){
+            enqueue(&q1, pcbs[1]);
+        }
+        if(clk==p3Arrival&&clk!=0){
+            enqueue(&q1, pcbs[2]);
+        }
+
+                            if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter&&!blocked){
+                                currPCB.priority++;
+                                enqueue(&q4, currPCB);
+                            }
+                        }
+
+                    }
+                }
+            }
+
+            else if(!isEmpty(&q4)){
+                currPCB = dequeue(&q4);
+                blocked = false;
+                execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
+                clk++;if (clk==p1Arrival&&clk!=0) {
+            enqueue(&q1, pcbs[0]);
+        }
+        if(clk==p2Arrival&&clk!=0){
+            enqueue(&q1, pcbs[1]);
+        }
+        if(clk==p3Arrival&&clk!=0){
+            enqueue(&q1, pcbs[2]);
+        }
+
+                if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter&&!blocked){
+                    execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
+                    clk++;if (clk==p1Arrival&&clk!=0) {
+            enqueue(&q1, pcbs[0]);
+        }
+        if(clk==p2Arrival&&clk!=0){
+            enqueue(&q1, pcbs[1]);
+        }
+        if(clk==p3Arrival&&clk!=0){
+            enqueue(&q1, pcbs[2]);
+        }
+
+                    if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter&&!blocked){
+                        execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
+                        clk++;if (clk==p1Arrival&&clk!=0) {
+            enqueue(&q1, pcbs[0]);
+        }
+        if(clk==p2Arrival&&clk!=0){
+            enqueue(&q1, pcbs[1]);
+        }
+        if(clk==p3Arrival&&clk!=0){
+            enqueue(&q1, pcbs[2]);
+        }
+
+                        if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter&&!blocked){
+                            execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
+                            clk++;if (clk==p1Arrival&&clk!=0) {
+            enqueue(&q1, pcbs[0]);
+        }
+        if(clk==p2Arrival&&clk!=0){
+            enqueue(&q1, pcbs[1]);
+        }
+        if(clk==p3Arrival&&clk!=0){
+            enqueue(&q1, pcbs[2]);
+        }
+
+                            if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter&&!blocked){
+                                execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
+                                clk++;if (clk==p1Arrival&&clk!=0) {
+            enqueue(&q1, pcbs[0]);
+        }
+        if(clk==p2Arrival&&clk!=0){
+            enqueue(&q1, pcbs[1]);
+        }
+        if(clk==p3Arrival&&clk!=0){
+            enqueue(&q1, pcbs[2]);
+        }
+
+                                if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter&&!blocked){
+                                    execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
+                                    clk++;if (clk==p1Arrival&&clk!=0) {
+            enqueue(&q1, pcbs[0]);
+        }
+        if(clk==p2Arrival&&clk!=0){
+            enqueue(&q1, pcbs[1]);
+        }
+        if(clk==p3Arrival&&clk!=0){
+            enqueue(&q1, pcbs[2]);
+        }
+
+                                    if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter&&!blocked){
+                                        execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
+                                        clk++;if (clk==p1Arrival&&clk!=0) {
+            enqueue(&q1, pcbs[0]);
+        }
+        if(clk==p2Arrival&&clk!=0){
+            enqueue(&q1, pcbs[1]);
+        }
+        if(clk==p3Arrival&&clk!=0){
+            enqueue(&q1, pcbs[2]);
+        }
+
+                                        if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter&&!blocked){
+                                          execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
+                                          clk++;if (clk==p1Arrival&&clk!=0) {
+            enqueue(&q1, pcbs[0]);
+        }
+        if(clk==p2Arrival&&clk!=0){
+            enqueue(&q1, pcbs[1]);
+        }
+        if(clk==p3Arrival&&clk!=0){
+            enqueue(&q1, pcbs[2]);
+        }
+
+                                          if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter&&!blocked){
+                                            enqueue(&q4, currPCB);
+                                          }
+                                        }
+
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                }
 
             
-    // }
+    }
 
     return 0;
 
