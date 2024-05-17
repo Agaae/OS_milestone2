@@ -110,6 +110,15 @@ void display(Queue *q) {
 }
 
 
+PCB peek(Queue *q) {
+    if (isEmpty(q)) {
+        printf("Queue is empty\n");
+        exit(1);
+    }
+    return q->items[q->front];
+}
+
+
 CELL memory[MEMORY_SIZE]; // Corrected declaration
 
 
@@ -128,6 +137,7 @@ Queue q1, q2, q3, q4, blockedQueue;
 typedef struct Mutex {
     enum { zero, one } value;
     int ownerID;
+    Queue q;
 } Mutex;
 Mutex file;
 Mutex userInput;
@@ -222,11 +232,10 @@ void assign(char variable, char *value) {
         case 'c': address=currPCB.upper_bound+3;break;
         default:printf("Unknown variable: %d\n", variable);return;
     }
-    printf("Assigning -----------------%d",address);
     if (strcmp(value, "input") == 0) {
         char *arrival_time;
 
-        printf("Enter value for variable '%c': ", variable);
+        printf("Enter value for variable '%c':\n ", variable);
          scanf("%s", arrival_time);
        strcpy(memory[address].value, arrival_time);
     } else {
@@ -362,7 +371,7 @@ void semWait(Mutex *mutex) {
     if (mutex->value == one) {
         
         printf("Process %d blocked waiting for resource\n", currPCB.pid);
-        enqueue(&blockedQueue, currPCB);
+        enqueue(&(mutex->q), currPCB);
         blocked = true;
     } else {
         // Resource is available, acquire it
@@ -376,46 +385,24 @@ void semSignal(Mutex *mutex) {
         // Release the resource
         mutex->value = zero;
         mutex->ownerID = -1; // No owner
-        int size = queueLength(&blockedQueue);
-        for (int i = 0; i < size; i++) {
-            PCB item = dequeue(&blockedQueue);
-            char *x=memory[item.lower_bound+item.program_counter].value;
-            if(strcmp(x,"semWait userInput")==0){
-                if(userInput.value==zero){
-                    if(item.priority==1)
-                        enqueue(&q1, item);
-                    if (item.priority==2)
-                        enqueue(&q2, item);
-                    if (item.priority==3)
-                        enqueue(&q3, item);
-                    break;
-                }
-                enqueue(&blockedQueue, item);
-            }
-            else if(strcmp(x,"semWait userOutput")==0){
-                if(userOutput.value==zero){
-                    if(item.priority==1)
-                        enqueue(&q1, item);
-                    if (item.priority==2)
-                        enqueue(&q2, item);
-                    if (item.priority==3)
-                        enqueue(&q3, item);
-                    break;
-                }
-                enqueue(&blockedQueue, item);
-            }
-            else if(strcmp(x,"semWait file")==0){
-                if(file.value==zero){
-                    if(item.priority==1)
-                        enqueue(&q1, item);
-                    if (item.priority==2)
-                        enqueue(&q2, item);
-                    if (item.priority==3)
-                        enqueue(&q3, item);
-                    break;
-                }
-                enqueue(&blockedQueue, item);
-            }
+        if(!isEmpty(&(mutex->q))){
+            
+        
+        PCB pcb=dequeue(&(mutex->q));
+        semWait(mutex);
+        printf("Process %d free to use resource\n", pcb.pid);
+        if(pcb.priority==1){
+            enqueue(&q1,pcb);
+        }
+        else if(pcb.priority==2){
+            enqueue(&q2,pcb);
+        }
+        else if(pcb.priority==3){
+            enqueue(&q3,pcb);
+        }
+        else{
+            enqueue(&q4,pcb);
+        }
         }
 
 
@@ -446,11 +433,13 @@ void execute_instruction(const char *instruction) {
     // Parse the instruction
     sscanf(instruction, "%s %s %s %s", command, arg1, arg2, arg3);
 
+    printf("Process %d executing \n", currPCB.pid);
     printf("Executing instruction: %s\n", instruction);
-     printf("command: %s, arg1: %s, arg2: %s, arg3: %s\n", command, arg1, arg2, arg3);
 
    // Determine the action based on the command
     if (strcmp(command, "semWait") == 0) {
+ currPCB.program_counter++;
+     sprintf(memory[currPCB.upper_bound + 7].value, "%d", currPCB.program_counter);
         if (strcmp(arg1, "userInput") == 0) {
             semWait(&userInput);
         } else if (strcmp(arg1, "file") == 0) {
@@ -460,10 +449,9 @@ void execute_instruction(const char *instruction) {
         } else {
             printf("Unknown semaphore: %s\n", arg1);
         }
-        if(!blocked){
-     currPCB.program_counter++;
-     sprintf(memory[currPCB.upper_bound + 7].value, "%d", currPCB.program_counter);}
-    } else if (strcmp(command, "assign") == 0) {
+    
+    } 
+    else if (strcmp(command, "assign") == 0) {
         if (strcmp(arg2, "input") == 0) {
             assign(arg1[0], arg2); // Assuming arg1 contains a single character representing the variable
         } else if (strcmp(arg2, "readFile") == 0) {
@@ -507,27 +495,53 @@ void execute_instruction(const char *instruction) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void print_memory() {
     printf("Memory Contents:\n");
-    for (int i = 0; i < 16; i++) {
+    for (int i = 0; i < MEMORY_SIZE; i++) {
         printf("%s", memory[i].name);
         printf("%s", memory[i].value);
         printf("\n");
     }
 }
 
+
+
+
+   void  printCycle(){
+  printf("----------------------Clock:%d ------------------------------\n", clk);
+        printf("--------------------------Q1---------------------------------------\n");
+        display(&q1);
+        printf("---------------------------Q2--------------------------------------\n");
+        display(&q2);
+        printf("----------------------------Q3-------------------------------------\n");
+        display(&q3);
+        printf("-----------------------------Q4------------------------------------\n");
+        display(&q4);
+        printf("-------------------------------Q file----------------------------------\n");
+        display(&(file.q));
+        printf("--------------------------------Q Input-------------------------------\n");
+        display(&(userInput.q));
+        printf("------------------------------Q Output-----------------------------------\n");
+        display(&(userOutput.q));
+        printf("---------------------------------------------------------------------------\n");
+        printf(" current pid %d pc %d priority %d\n", currPCB.pid, currPCB.program_counter, currPCB.priority);
+
+        print_memory();
+
+   }
+
 int main() {
     initializeQueue(&q1);
     initializeQueue(&q2);
     initializeQueue(&q3);
     initializeQueue(&q4);
-    initializeQueue(&blockedQueue);
+    initializeQueue(&(file.q));
+    initializeQueue(&(userInput.q));
+    initializeQueue(&(userOutput.q));
 
     const char *filenames[3] = {"Program_1.txt", "Program_2.txt", "Program_3.txt"};
 
     for (int i = 0; i < 3; i++) {
         read_program(filenames[i]);
     }
-
-    print_memory();
 
     for (int i = 0; i < 3; i++) {
         int arrival_time;
@@ -548,275 +562,94 @@ int main() {
         }
     }
 
-    if(p1Arrival==0){
-        enqueue(&q1, pcbs[0]);
-    }    
-    if(p2Arrival==0){
-        enqueue(&q1, pcbs[1]);
-    }
-    if(p3Arrival==0){
-        enqueue(&q1, pcbs[2]);
-    }
+        bool haveProcess = false;
+        int quantum = 0;
 
 
-   
+        while(clk<40){
 
-
-    while ((!isEmpty(&q1) || !isEmpty(&q2) || !isEmpty(&q3)||!isEmpty(&q4)||!isEmpty(&blockedQueue))&&clk<30)  {
-
-
-        printf("----------------------Clock:%d ------------------------------\n", clk);
-        printf("q1-----------------------------------------------------------------");
-        display(&q1);
-        printf("q2-----------------------------------------------------------------");
-        display(&q2);
-        printf("q3-----------------------------------------------------------------");
-        display(&q3);
-        printf("q4-----------------------------------------------------------------");
-        display(&q4);
-        printf("q5-----------------------------------------------------------------");
-        display(&blockedQueue);
-        printf("-----------------------------------------------------------------");
-
-        if (clk==p1Arrival&&clk!=0) {
-            enqueue(&q1, pcbs[0]);
-        }
-        if(clk==p2Arrival&&clk!=0){
-            enqueue(&q1, pcbs[1]);
-        }
-        if(clk==p3Arrival&&clk!=0){
-            enqueue(&q1, pcbs[2]);
-        }
-
-        if (!isEmpty(&q1)) {
-            currPCB = dequeue(&q1);
-            blocked = false;
-            execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
-            if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter&&!blocked){
-                currPCB.priority++;
-                enqueue(&q2, currPCB);
+            if(p1Arrival==clk){
+                enqueue(&q1, pcbs[0]);
             }
-            clk++;
-            if (clk==p1Arrival&&clk!=0) {
-            enqueue(&q1, pcbs[0]);
-        }
-        if(clk==p2Arrival&&clk!=0){
-            enqueue(&q1, pcbs[1]);
-        }
-        if(clk==p3Arrival&&clk!=0){
-            enqueue(&q1, pcbs[2]);
-        }
-
+            if(p2Arrival==clk){
+                enqueue(&q1, pcbs[1]);
+            }
+            if(p3Arrival==clk){
+                enqueue(&q1, pcbs[2]);
             }
 
-            else if(!isEmpty(&q2)){
-                currPCB = dequeue(&q2);
-                blocked = false;
-                execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
-                clk++;if (clk==p1Arrival&&clk!=0) {
-            enqueue(&q1, pcbs[0]);
-        }
-        if(clk==p2Arrival&&clk!=0){
-            enqueue(&q1, pcbs[1]);
-        }
-        if(clk==p3Arrival&&clk!=0){
-            enqueue(&q1, pcbs[2]);
-        }
-
-                if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter&&!blocked){
-                    execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
-                    clk++;if (clk==p1Arrival&&clk!=0) {
-            enqueue(&q1, pcbs[0]);
-        }
-        if(clk==p2Arrival&&clk!=0){
-            enqueue(&q1, pcbs[1]);
-        }
-        if(clk==p3Arrival&&clk!=0){
-            enqueue(&q1, pcbs[2]);
-        }
-
-                    if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter&&!blocked){
-                        currPCB.priority++;
-                        enqueue(&q3, currPCB);
-                    }
+            
+     
+            if(haveProcess&&quantum!=0){
+                printCycle();
+                execute_instruction(memory[currPCB.lower_bound +currPCB.program_counter].value);
+                quantum--;
+                if(quantum==0 &&(currPCB.upper_bound-currPCB.lower_bound)+1!=(currPCB.program_counter)){
+                    
+                    haveProcess=false;
+                        switch(currPCB.priority){
+                            case 1:  currPCB.priority++;sprintf(memory[currPCB.upper_bound + 6].value, "%d", currPCB.priority);enqueue(&q2,currPCB);break;
+                            case 2:  currPCB.priority++;sprintf(memory[currPCB.upper_bound + 6].value, "%d", currPCB.priority);enqueue(&q3,currPCB);break;
+                            case 3:  currPCB.priority++;sprintf(memory[currPCB.upper_bound + 6].value, "%d", currPCB.priority); enqueue(&q4,currPCB);break;
+                            default:  currPCB.priority++;sprintf(memory[currPCB.upper_bound + 6].value, "%d", currPCB.priority); enqueue(&q4,currPCB);break;
+                        }
                 }
+
+                
+                 clk++;
+                if(blocked){
+                    haveProcess=false;
+                    
+                }
+                 if( currPCB.upper_bound-currPCB.lower_bound+1==currPCB.program_counter){
+                     haveProcess=false;
+                 }
+            }
+            else{
+
+            if(!isEmpty(&q1)){
+                printCycle();
+                currPCB=dequeue(&q1);
+                blocked=false;
+                haveProcess=false;
+                quantum=0;
+                currPCB.priority++;sprintf(memory[currPCB.upper_bound + 6].value, "%d", currPCB.priority);
+                 execute_instruction(memory[currPCB.lower_bound +currPCB.program_counter].value);
+                    
+                    if(!blocked ){
+                enqueue(&q2,currPCB);}
+                clk++;
+                
+
+                
+            }
+           else if(!isEmpty(&q2)){
+                currPCB=dequeue(&q2);
+                blocked=false;
+                haveProcess=true;
+                quantum=2;
                 
 
             }
-            else if(!isEmpty(&q3)){
-                currPCB = dequeue(&q3);
-                blocked = false;
-                execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
-                clk++;if (clk==p1Arrival&&clk!=0) {
-            enqueue(&q1, pcbs[0]);
-        }
-        if(clk==p2Arrival&&clk!=0){
-            enqueue(&q1, pcbs[1]);
-        }
-        if(clk==p3Arrival&&clk!=0){
-            enqueue(&q1, pcbs[2]);
-        }
+           else if(!isEmpty(&q3)){
 
-                if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter&&!blocked){
-                    execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
-                    clk++;if (clk==p1Arrival&&clk!=0) {
-            enqueue(&q1, pcbs[0]);
-        }
-        if(clk==p2Arrival&&clk!=0){
-            enqueue(&q1, pcbs[1]);
-        }
-        if(clk==p3Arrival&&clk!=0){
-            enqueue(&q1, pcbs[2]);
-        }
+                currPCB=dequeue(&q3);
+                blocked=false;
+                haveProcess=true;
+                quantum=4;
 
-                    if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter&&!blocked){
-                        execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
-                        clk++;if (clk==p1Arrival&&clk!=0) {
-            enqueue(&q1, pcbs[0]);
-        }
-        if(clk==p2Arrival&&clk!=0){
-            enqueue(&q1, pcbs[1]);
-        }
-        if(clk==p3Arrival&&clk!=0){
-            enqueue(&q1, pcbs[2]);
-        }
-
-                        if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter&&!blocked){
-                            execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
-                            clk++;if (clk==p1Arrival&&clk!=0) {
-            enqueue(&q1, pcbs[0]);
-        }
-        if(clk==p2Arrival&&clk!=0){
-            enqueue(&q1, pcbs[1]);
-        }
-        if(clk==p3Arrival&&clk!=0){
-            enqueue(&q1, pcbs[2]);
-        }
-
-                            if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter&&!blocked){
-                                currPCB.priority++;
-                                enqueue(&q4, currPCB);
-                            }
-                        }
-
-                    }
-                }
             }
+           else if(!isEmpty(&q4)){
 
-            else if(!isEmpty(&q4)){
-                currPCB = dequeue(&q4);
-                blocked = false;
-                execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
-                clk++;if (clk==p1Arrival&&clk!=0) {
-            enqueue(&q1, pcbs[0]);
+                currPCB=dequeue(&q4);
+                blocked=false;
+                haveProcess=true;
+                quantum=8;
+            }
+            }
+           
         }
-        if(clk==p2Arrival&&clk!=0){
-            enqueue(&q1, pcbs[1]);
-        }
-        if(clk==p3Arrival&&clk!=0){
-            enqueue(&q1, pcbs[2]);
-        }
-
-                if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter&&!blocked){
-                    execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
-                    clk++;if (clk==p1Arrival&&clk!=0) {
-            enqueue(&q1, pcbs[0]);
-        }
-        if(clk==p2Arrival&&clk!=0){
-            enqueue(&q1, pcbs[1]);
-        }
-        if(clk==p3Arrival&&clk!=0){
-            enqueue(&q1, pcbs[2]);
-        }
-
-                    if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter&&!blocked){
-                        execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
-                        clk++;if (clk==p1Arrival&&clk!=0) {
-            enqueue(&q1, pcbs[0]);
-        }
-        if(clk==p2Arrival&&clk!=0){
-            enqueue(&q1, pcbs[1]);
-        }
-        if(clk==p3Arrival&&clk!=0){
-            enqueue(&q1, pcbs[2]);
-        }
-
-                        if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter&&!blocked){
-                            execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
-                            clk++;if (clk==p1Arrival&&clk!=0) {
-            enqueue(&q1, pcbs[0]);
-        }
-        if(clk==p2Arrival&&clk!=0){
-            enqueue(&q1, pcbs[1]);
-        }
-        if(clk==p3Arrival&&clk!=0){
-            enqueue(&q1, pcbs[2]);
-        }
-
-                            if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter&&!blocked){
-                                execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
-                                clk++;if (clk==p1Arrival&&clk!=0) {
-            enqueue(&q1, pcbs[0]);
-        }
-        if(clk==p2Arrival&&clk!=0){
-            enqueue(&q1, pcbs[1]);
-        }
-        if(clk==p3Arrival&&clk!=0){
-            enqueue(&q1, pcbs[2]);
-        }
-
-                                if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter&&!blocked){
-                                    execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
-                                    clk++;if (clk==p1Arrival&&clk!=0) {
-            enqueue(&q1, pcbs[0]);
-        }
-        if(clk==p2Arrival&&clk!=0){
-            enqueue(&q1, pcbs[1]);
-        }
-        if(clk==p3Arrival&&clk!=0){
-            enqueue(&q1, pcbs[2]);
-        }
-
-                                    if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter&&!blocked){
-                                        execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
-                                        clk++;if (clk==p1Arrival&&clk!=0) {
-            enqueue(&q1, pcbs[0]);
-        }
-        if(clk==p2Arrival&&clk!=0){
-            enqueue(&q1, pcbs[1]);
-        }
-        if(clk==p3Arrival&&clk!=0){
-            enqueue(&q1, pcbs[2]);
-        }
-
-                                        if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter&&!blocked){
-                                          execute_instruction(memory[currPCB.lower_bound+currPCB.program_counter].value);
-                                          clk++;if (clk==p1Arrival&&clk!=0) {
-            enqueue(&q1, pcbs[0]);
-        }
-        if(clk==p2Arrival&&clk!=0){
-            enqueue(&q1, pcbs[1]);
-        }
-        if(clk==p3Arrival&&clk!=0){
-            enqueue(&q1, pcbs[2]);
-        }
-
-                                          if(currPCB.upper_bound-currPCB.lower_bound!=currPCB.program_counter&&!blocked){
-                                            enqueue(&q4, currPCB);
-                                          }
-                                        }
-
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                }
-
-            
-    }
-
+    
     return 0;
 
 
