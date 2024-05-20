@@ -10,6 +10,8 @@
 
 #define MAX_SIZE 10
 
+int mem_size=0;
+
 bool blocked;
 
 int lower_bound=0;
@@ -184,7 +186,7 @@ int insCount=1;
     pcb.priority =1 ;
     pcb.program_counter = 0;
     pcb.lower_bound = lb;
-
+    strcpy(pcb.state, "Ready");
     strcpy(temp.name, "PID: ");
     sprintf(temp.value,  "%d", pcb.pid);
     memory[lower_bound] = temp;
@@ -219,6 +221,7 @@ pcb.upper_bound = lower_bound-9;
     pcbs[program_index-2] = pcb;
 
     fclose(file);
+    mem_size=lower_bound;
 }
 
 ////////////////////////////////// Instructions //////////////////////////////////////////////////
@@ -364,6 +367,7 @@ char* readFile(char filename) {
     // Return the file contents
     printf("File contents: %s\n", file_contents);
     return file_contents;
+   
 }
 
 
@@ -371,6 +375,8 @@ void semWait(Mutex *mutex) {
     if (mutex->value == one) {
         
         printf("Process %d blocked waiting for resource\n", currPCB.pid);
+        strcpy(currPCB.state,"Blocked");
+                strcpy(memory[currPCB.upper_bound + 5].value,currPCB.state);
         enqueue(&(mutex->q), currPCB);
         blocked = true;
     } else {
@@ -389,6 +395,8 @@ void semSignal(Mutex *mutex) {
             
         
         PCB pcb=dequeue(&(mutex->q));
+         strcpy(pcb.state,"Running");
+                strcpy(memory[pcb.upper_bound + 5].value,pcb.state);
         semWait(mutex);
         printf("Process %d free to use resource\n", pcb.pid);
         if(pcb.priority==1){
@@ -423,7 +431,7 @@ void print(char output) {
 
     }
 
-    printf("%s", memory[address].value);
+    printf("%s\n", memory[address].value);
 }
 void execute_instruction(const char *instruction) {
      char command[MAX_WORD_LENGTH], arg1[MAX_WORD_LENGTH], arg2[MAX_WORD_LENGTH], arg3[MAX_WORD_LENGTH];
@@ -495,7 +503,7 @@ void execute_instruction(const char *instruction) {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void print_memory() {
     printf("Memory Contents:\n");
-    for (int i = 0; i < MEMORY_SIZE; i++) {
+    for (int i = 0; i < mem_size; i++) {
         printf("%s", memory[i].name);
         printf("%s", memory[i].value);
         printf("\n");
@@ -515,16 +523,16 @@ void print_memory() {
         display(&q3);
         printf("-----------------------------Q4------------------------------------\n");
         display(&q4);
-        printf("-------------------------------Q file----------------------------------\n");
+        printf("----------------------------Q BLocked file----------------------------------\n");
         display(&(file.q));
-        printf("--------------------------------Q Input-------------------------------\n");
+        printf("--------------------------Q Blocked Input-------------------------------\n");
         display(&(userInput.q));
-        printf("------------------------------Q Output-----------------------------------\n");
+        printf("-------------------------Q Blocked Output-----------------------------------\n");
         display(&(userOutput.q));
         printf("---------------------------------------------------------------------------\n");
-        printf(" current pid %d pc %d priority %d\n", currPCB.pid, currPCB.program_counter, currPCB.priority);
+        printf(" current pid: %d pc: %d priority: %d state: %s\n", currPCB.pid, currPCB.program_counter, currPCB.priority, currPCB.state);
 
-        print_memory();
+       print_memory();
 
    }
 
@@ -536,13 +544,12 @@ int main() {
     initializeQueue(&(file.q));
     initializeQueue(&(userInput.q));
     initializeQueue(&(userOutput.q));
-
+    initializeQueue(&blockedQueue);
     const char *filenames[3] = {"Program_1.txt", "Program_2.txt", "Program_3.txt"};
 
     for (int i = 0; i < 3; i++) {
-        read_program(filenames[i]);
+        
     }
-
     for (int i = 0; i < 3; i++) {
         int arrival_time;
         printf("Enter arrival time for Process %d: ", i + 1);
@@ -566,15 +573,22 @@ int main() {
         int quantum = 0;
 
 
-        while(clk<40){
+
+        while(true){
 
             if(p1Arrival==clk){
+                
+                read_program(filenames[0]);
                 enqueue(&q1, pcbs[0]);
             }
             if(p2Arrival==clk){
+                
+                read_program(filenames[1]);
                 enqueue(&q1, pcbs[1]);
             }
             if(p3Arrival==clk){
+                
+                read_program(filenames[2]);
                 enqueue(&q1, pcbs[2]);
             }
 
@@ -587,6 +601,8 @@ int main() {
                 if(quantum==0 &&(currPCB.upper_bound-currPCB.lower_bound)+1!=(currPCB.program_counter)){
                     
                     haveProcess=false;
+                     strcpy(currPCB.state,"Ready");
+                strcpy(memory[currPCB.upper_bound + 5].value,currPCB.state);
                         switch(currPCB.priority){
                             case 1:  currPCB.priority++;sprintf(memory[currPCB.upper_bound + 6].value, "%d", currPCB.priority);enqueue(&q2,currPCB);break;
                             case 2:  currPCB.priority++;sprintf(memory[currPCB.upper_bound + 6].value, "%d", currPCB.priority);enqueue(&q3,currPCB);break;
@@ -599,6 +615,7 @@ int main() {
                  clk++;
                 if(blocked){
                     haveProcess=false;
+                     
                     
                 }
                  if( currPCB.upper_bound-currPCB.lower_bound+1==currPCB.program_counter){
@@ -608,8 +625,11 @@ int main() {
             else{
 
             if(!isEmpty(&q1)){
-                printCycle();
+               
                 currPCB=dequeue(&q1);
+                strcpy(currPCB.state,"Running");
+                strcpy(memory[currPCB.upper_bound + 5].value,currPCB.state);
+                 printCycle();
                 blocked=false;
                 haveProcess=false;
                 quantum=0;
@@ -617,6 +637,8 @@ int main() {
                  execute_instruction(memory[currPCB.lower_bound +currPCB.program_counter].value);
                     
                     if(!blocked ){
+                         strcpy(currPCB.state,"Ready");
+                strcpy(memory[currPCB.upper_bound + 5].value,currPCB.state);
                 enqueue(&q2,currPCB);}
                 clk++;
                 
@@ -625,6 +647,8 @@ int main() {
             }
            else if(!isEmpty(&q2)){
                 currPCB=dequeue(&q2);
+                 strcpy(currPCB.state,"Running");
+                strcpy(memory[currPCB.upper_bound + 5].value,currPCB.state);
                 blocked=false;
                 haveProcess=true;
                 quantum=2;
@@ -634,6 +658,8 @@ int main() {
            else if(!isEmpty(&q3)){
 
                 currPCB=dequeue(&q3);
+                 strcpy(currPCB.state,"Running");
+                strcpy(memory[currPCB.upper_bound + 5].value,currPCB.state);
                 blocked=false;
                 haveProcess=true;
                 quantum=4;
@@ -642,9 +668,14 @@ int main() {
            else if(!isEmpty(&q4)){
 
                 currPCB=dequeue(&q4);
+                 strcpy(currPCB.state,"Running");
+                strcpy(memory[currPCB.upper_bound + 5].value,currPCB.state);
                 blocked=false;
                 haveProcess=true;
                 quantum=8;
+            }
+            else {
+                clk++;
             }
             }
            
